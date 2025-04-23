@@ -1,4 +1,4 @@
-# Personalized Savings Goal Tracker
+# Personalized Savings Goal Tracker Chatbot
 
 A retro-themed, single-page web application for managing and tracking personal savings goals with multi-user support and an interactive chatbot interface, styled to resemble an old-school computer monitor.
 
