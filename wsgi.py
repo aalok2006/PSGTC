@@ -1411,7 +1411,7 @@ HTML_CONTENT = """
                 chatbotMessages.scrollTop = chatbotMessages.scrollHeight;
             };
 
-            // --- Client-Side Command Handling ---
+                        // --- Client-Side Command Handling ---
             // These commands are handled purely in JavaScript based on the local goal data
             const processClientSideCommand = (userInputLower, userInputRaw, safeUserName) => {
                 let response = "";
@@ -1419,15 +1419,24 @@ HTML_CONTENT = """
                 let commandHandled = true; // Assume handled unless no match
 
                 // Commands that require a user
-                const userRequiredCommands = ["list goals", "ls", "summary", "total saved", "total remaining", "progress", "status", "remaining", "left for", "closest goal", "export goals"];
-                 const requiresUser = userRequiredCommands.some(cmd => userInputLower.startsWith(cmd));
+                const userRequiredCommands = [
+                    "list goals", "ls", "summary", "total saved", "total remaining",
+                    "progress", "status", "remaining", "left for", "closest goal",
+                    "export goals", // Existing
+                    "list complete goals", "list incomplete goals", "list high priority goals", // New list filters
+                    "list medium priority goals", "list low priority goals", // New list filters
+                    "goal details", "check goal", // New goal specifics
+                    "count goals", "count complete goals", "count incomplete goals", // New counts
+                    "count high priority goals", "count medium priority goals", "count low priority goals" // New priority counts
+                ];
+                 const requiresUser = userRequiredCommands.some(cmd => userInputLower === cmd || (cmd.endsWith(" ") && userInputLower.startsWith(cmd))); // Check exact match OR startsWith for commands needing arguments
 
                 if (requiresUser && !userName) {
                     response = `ERROR: No user active. Please set a user first using the '[SWITCH]' button or <code>change name [username]</code> command to manage goals.`;
                     isHtml = true;
                 } else if (userInputLower.startsWith("change name ")) {
                      const newName = userInputRaw.substring("change name ".length).trim();
-                     if (newName && newName.length > 0 && newName.length <= 50) { // Adjusted max length
+                     if (newName && newName.length > 0 && newName.length <= 50) {
                          const newNameUpper = newName.trim().toUpperCase();
                          if (newNameUpper !== userName) {
                              switchUser(newNameUpper);
@@ -1450,18 +1459,28 @@ HTML_CONTENT = """
                      response = `AVAILABLE COMMANDS (Context: User <strong>${safeUserName}</strong>):<br>
                             <ul>
                                 <li><code>list goals</code> / <code>ls</code> - Display current user's goals (respects sort order).</li>
-                                <li><code>summary</code> - Overview for current user.</li>
-                                <li><code>progress [goal name]</code> - Show progress for a specific goal.</li>
-                                <li><code>remaining [goal name]</code> - Show remaining amount for a goal.</li>
+                                <li><code>list complete goals</code> - Show only completed goals.</li>
+                                <li><code>list incomplete goals</code> - Show only incomplete goals.</li>
+                                <li><code>list high/medium/low priority goals</code> - Show goals of a specific priority.</li>
+                                <li><code>count goals</code> - Report total goal count.</li>
+                                <li><code>count complete goals</code> - Report count of completed goals.</li>
+                                <li><code>count incomplete goals</code> - Report count of incomplete goals.</li>
+                                <li><code>count high/medium/low priority goals</code> - Report count of goals by priority.</li>
+                                <li><code>summary</code> - Overview for current user (includes total counts and amounts).</li>
+                                <li><code>progress [goal name]</code> / <code>status [goal name]</code> - Show progress for a specific goal.</li>
+                                <li><code>remaining [goal name]</code> / <code>left for [goal name]</code> - Show remaining amount for a goal.</li>
+                                <li><code>goal details [goal name]</code> - Show comprehensive details for a goal (progress, dates, etc.).</li>
+                                <li><code>check goal [goal name]</code> - Verify if a goal exists by name.</li>
                                 <li><code>closest goal</code> - Identify current user's goal nearest completion.</li>
                                 <li><code>export goals</code> - Display current user's goals data as JSON.</li>
+                                <li><code>current sort</code> - Show the current goal sorting criteria.</li> <!-- New help item -->
                                 <li><code>tip</code> / <code>suggestion</code> - Provide a random saving suggestion.</li>
                                 <li><strong><code>change name [new name]</code> - Switch to/create another user profile.</strong></li>
                                 <li><code>clear</code> / <code>cls</code> - Clear this chat window.</li>
                                 <li><code>help</code> / <code>?</code> - Display this list.</li>
                                 <li>(For adding/updating/deleting goals, please use the main page form and buttons.)</li>
                             </ul>
-                            For other questions, the AI assistant may respond based on its training, but is instructed to focus on personalized savings goals.`; // Clarified interaction model
+                            For other questions, the AI assistant may respond based on its training, but is instructed to focus on personalized savings goals.`;
                      isHtml = true;
                  }
                 else if (userInputLower === "list goals" || userInputLower === "ls") {
@@ -1478,6 +1497,79 @@ HTML_CONTENT = """
                          isHtml = true;
                      }
                  }
+                // --- NEW LIST FILTER COMMANDS ---
+                else if (userInputLower === "list complete goals") {
+                    const completeGoals = goals.filter(g => Number(g.current) >= Number(g.target) && Number(g.target) > 0);
+                    if (completeGoals.length === 0) { response = `NO COMPLETED GOALS FOUND for user <strong>${safeUserName}</strong>.`; isHtml = true; }
+                    else {
+                        response = `COMPLETED GOALS FOR <strong>${safeUserName}</strong>:<br><ul>`;
+                        completeGoals.forEach(g => {
+                             const progressPercent = Number(g.target) > 0 ? Math.round((Math.min(Number(g.current), Number(g.target)) / Number(g.target)) * 100) : 0;
+                             response += `<li><strong>${escapeHTML(g.name)}</strong>: ${formatCurrency(g.current)} / ${formatCurrency(g.target)} [${progressPercent}%]</li>`;
+                        });
+                        response += "</ul>";
+                        isHtml = true;
+                    }
+                }
+                 else if (userInputLower === "list incomplete goals") {
+                    const incompleteGoals = goals.filter(g => Number(g.current) < Number(g.target) || Number(g.target) <= 0); // Include targets <= 0 as incomplete/not-started
+                    if (incompleteGoals.length === 0) { response = `ALL GOALS ARE COMPLETE for user <strong>${safeUserName}</strong>!`; isHtml = true; }
+                    else {
+                        response = `INCOMPLETE GOALS FOR <strong>${safeUserName}</strong>:<br><ul>`;
+                        incompleteGoals.forEach(g => {
+                             const progressPercent = Number(g.target) > 0 ? Math.round((Math.min(Number(g.current), Number(g.target)) / Number(g.target)) * 100) : 0;
+                             const priorityText = (g.priority || 'medium').toUpperCase();
+                             response += `<li><strong>${escapeHTML(g.name)}</strong> [${priorityText}]: ${formatCurrency(g.current)} / ${formatCurrency(g.target)} [${progressPercent}%]</li>`;
+                        });
+                        response += "</ul>";
+                        isHtml = true;
+                    }
+                 }
+                 else if (userInputLower.startsWith("list ") && userInputLower.endsWith(" priority goals")) {
+                     const priorityMatch = userInputLower.match(/^list (high|medium|low) priority goals$/);
+                     if (priorityMatch && priorityMatch[1]) {
+                         const targetPriority = priorityMatch[1];
+                         const filteredGoals = goals.filter(g => (g.priority || 'medium').toLowerCase() === targetPriority);
+                         if (filteredGoals.length === 0) { response = `NO ${targetPriority.toUpperCase()} PRIORITY GOALS FOUND for user <strong>${safeUserName}</strong>.`; isHtml = true; }
+                         else {
+                             response = `${targetPriority.toUpperCase()} PRIORITY GOALS FOR <strong>${safeUserName}</strong>:<br><ul>`;
+                             filteredGoals.forEach(g => {
+                                 const progressPercent = Number(g.target) > 0 ? Math.round((Math.min(Number(g.current), Number(g.target)) / Number(g.target)) * 100) : 0;
+                                 response += `<li><strong>${escapeHTML(g.name)}</strong>: ${formatCurrency(g.current)} / ${formatCurrency(g.target)} [${progressPercent}%] ${Number(g.current) >= Number(g.target) && Number(g.target) > 0 ? '- COMPLETE' : ''}</li>`;
+                             });
+                             response += "</ul>";
+                             isHtml = true;
+                         }
+                     } else {
+                         response = "SYNTAX ERROR: USE <code>list high priority goals</code>, <code>list medium priority goals</code>, or <code>list low priority goals</code>."; isHtml = true;
+                     }
+                 }
+                 // --- END NEW LIST FILTER COMMANDS ---
+
+                 // --- NEW COUNT COMMANDS ---
+                 else if (userInputLower === "count goals") {
+                     response = `USER <strong>${safeUserName}</strong> HAS A TOTAL OF <strong>${goals.length}</strong> GOALS.`; isHtml = true;
+                 }
+                 else if (userInputLower === "count complete goals") {
+                     const completeCount = goals.filter(g => Number(g.current) >= Number(g.target) && Number(g.target) > 0).length;
+                     response = `USER <strong>${safeUserName}</strong> HAS <strong>${completeCount}</strong> COMPLETED GOALS.`; isHtml = true;
+                 }
+                 else if (userInputLower === "count incomplete goals") {
+                     const incompleteCount = goals.filter(g => Number(g.current) < Number(g.target) || Number(g.target) <= 0).length;
+                     response = `USER <strong>${safeUserName}</strong> HAS <strong>${incompleteCount}</strong> INCOMPLETE GOALS.`; isHtml = true;
+                 }
+                 else if (userInputLower.startsWith("count ") && userInputLower.endsWith(" priority goals")) {
+                      const priorityMatch = userInputLower.match(/^count (high|medium|low) priority goals$/);
+                      if (priorityMatch && priorityMatch[1]) {
+                          const targetPriority = priorityMatch[1];
+                          const priorityCount = goals.filter(g => (g.priority || 'medium').toLowerCase() === targetPriority).length;
+                          response = `USER <strong>${safeUserName}</strong> HAS <strong>${priorityCount}</strong> ${targetPriority.toUpperCase()} PRIORITY GOALS.`; isHtml = true;
+                      } else {
+                          response = "SYNTAX ERROR: USE <code>count high priority goals</code>, <code>count medium priority goals</code>, or <code>count low priority goals</code>."; isHtml = true;
+                      }
+                 }
+                 // --- END NEW COUNT COMMANDS ---
+
                  else if (userInputLower === "summary") {
                      const totalSaved = goals.reduce((sum, goal) => sum + Number(goal.current), 0);
                      const totalTarget = goals.reduce((sum, goal) => sum + Number(goal.target), 0);
@@ -1528,12 +1620,12 @@ HTML_CONTENT = """
                         "TIP: Pack your lunch instead of buying it. The daily savings add up significantly over time!",
                         "TIP: Use a budgeting app or spreadsheet to track exactly where your money is going.",
                         "TIP: Set specific, measurable, achievable, relevant, and time-bound (SMART) savings goals.",
-                        "TIP: Consider rounding up your purchases to the nearest ₹10 or ₹50 and transferring the difference to savings.", // Currency Change
+                        "TIP: Consider rounding up your purchases to the nearest ₹10 or ₹50 and transferring the difference to savings.",
                         "TIP: Look for free entertainment options like parks, libraries, or community events."
                       ];
                      response = tips[Math.floor(Math.random() * tips.length)]; isHtml = false;
                  }
-                 else if (["thank you", "thanks", "ty", "cheers", "dhanyavaad"].includes(userInputLower)) { // Currency Change - Added Hindi thanks
+                 else if (["thank you", "thanks", "ty", "cheers", "dhanyavaad"].includes(userInputLower)) {
                       const thanks = ["ACKNOWLEDGED.", "YOU ARE WELCOME.", "RESPONSE CONFIRMED.", "GLAD TO ASSIST."]; response = thanks[Math.floor(Math.random() * thanks.length)]; isHtml = false;
                  }
                  else if (userInputLower.startsWith("progress ") || userInputLower.startsWith("status ")) {
@@ -1562,6 +1654,48 @@ HTML_CONTENT = """
                         } else { response = `ERROR: Goal "<strong>${escapeHTML(goalName)}</strong>" not found for user <strong>${safeUserName}</strong>.`; isHtml = true; }
                     }
                  }
+                 // --- NEW GOAL DETAILS COMMAND ---
+                 else if (userInputLower.startsWith("goal details ")) {
+                     const goalName = userInputRaw.substring("goal details ".length).trim();
+                     if (!goalName) { response = "SYNTAX ERROR: USE <code>goal details [GOAL NAME]</code>."; isHtml = true; }
+                     else {
+                         const goal = goals.find(g => g.name.toLowerCase() === goalName.toLowerCase());
+                         if (goal) {
+                             const progressValue = Math.max(0, Math.min(Number(goal.current), Number(goal.target)));
+                             const progressPercent = Number(goal.target) > 0 ? Math.round((progressValue / Number(goal.target)) * 100) : 0;
+                             const remaining = Math.max(0, Number(goal.target) - Number(goal.current));
+                             const addedDate = goal.addedDate ? new Date(goal.addedDate).toLocaleString() : 'N/A';
+                             const lastUpdated = goal.lastUpdated ? new Date(goal.lastUpdated).toLocaleString() : 'N/A';
+
+                             response = `DETAILS FOR GOAL <strong>${escapeHTML(goal.name)}</strong> (User: <strong>${safeUserName}</strong>):<br>
+                                - Priority: ${goal.priority?.toUpperCase() || 'N/A'}<br>
+                                - Saved: <strong>${formatCurrency(goal.current)}</strong><br>
+                                - Target: ${formatCurrency(goal.target)}<br>
+                                - Remaining: <strong>${formatCurrency(remaining)}</strong><br>
+                                - Completion: <strong>${progressPercent}%</strong> ${Number(goal.current) >= Number(goal.target) && Number(goal.target) > 0 ? '(COMPLETE)' : ''}<br>
+                                - Added: ${addedDate}<br>
+                                - Last Updated: ${lastUpdated}`;
+                             isHtml = true;
+                         } else { response = `ERROR: Goal "<strong>${escapeHTML(goalName)}</strong>" not found for user <strong>${safeUserName}</strong>.`; isHtml = true; }
+                     }
+                 }
+                 // --- END NEW GOAL DETAILS COMMAND ---
+
+                 // --- NEW CHECK GOAL COMMAND ---
+                 else if (userInputLower.startsWith("check goal ")) {
+                      const goalName = userInputRaw.substring("check goal ".length).trim();
+                      if (!goalName) { response = "SYNTAX ERROR: USE <code>check goal [GOAL NAME]</code>."; isHtml = true; }
+                      else {
+                          const goalExists = goals.some(g => g.name.toLowerCase() === goalName.toLowerCase());
+                          if (goalExists) {
+                              response = `GOAL "<strong>${escapeHTML(goalName)}</strong>" EXISTS for user <strong>${safeUserName}</strong>.`; isHtml = true;
+                          } else {
+                              response = `GOAL "<strong>${escapeHTML(goalName)}</strong>" NOT FOUND for user <strong>${safeUserName}</strong>.`; isHtml = true;
+                          }
+                      }
+                 }
+                 // --- END NEW CHECK GOAL COMMAND ---
+
                  else if (userInputLower === "closest goal") {
                     const incompleteGoals = goals.filter(g => Number(g.current) < Number(g.target) && Number(g.target) > 0).map(g => ({...g, remainingAbs: Math.max(0, Number(g.target) - Number(g.current)), progressPerc: Number(g.target) > 0 ? (Math.min(Number(g.current), Number(g.target)) / Number(g.target)) : 0 }));
                     if (incompleteGoals.length === 0) { response = `ALL GOALS ARE COMPLETE for user <strong>${safeUserName}</strong>!`; isHtml = true; }
@@ -1580,6 +1714,16 @@ HTML_CONTENT = """
                         isHtml = true;
                     }
                  }
+                 // --- NEW CURRENT SORT COMMAND ---
+                 else if (userInputLower === "current sort") {
+                     if (!currentSortCriteria) {
+                          response = "SYSTEM: Current sorting criteria is not set.";
+                     } else {
+                         response = `SYSTEM: Goals for user <strong>${safeUserName}</strong> are currently sorted by <strong>${currentSortCriteria.replace('_', ' ').toUpperCase()}</strong>.`;
+                     }
+                     isHtml = true;
+                 }
+                 // --- END NEW CURRENT SORT COMMAND ---
                  // Note: Commands like "add goal", "add funds", "delete goal" via chat are removed.
                  // The UI form/buttons are the intended way to modify goal data.
                  else {
