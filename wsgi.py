@@ -12,7 +12,7 @@ app = Flask(__name__)
 
 # --- Google GenAI Setup ---
 # Check if API key is set
-api_key = "AIzaSyAK_eKtfC9gvxPryFWhB0JP-ldFBjUTi5Y"
+api_key = os.environ.get("GEMINI_API_KEY")
 if not api_key:
     print("CRITICAL ERROR: GEMINI_API_KEY environment variable not set.")
     print("Please set the environment variable before running the app.")
