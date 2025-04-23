@@ -1902,12 +1902,3 @@ def chat():
         print(f"Error generating content with Google GenAI: {e}")
         # Return a generic error to the client
         return jsonify({'response': f"SYSTEM ERROR: Failed to get response from AI backend. ({type(e).__name__}) Please try again later or check server logs."}), 500
-
-# --- Run the Flask App ---
-if __name__ == '__main__':
-    # Development server. In production, use a WSGI server (like Gunicorn).
-    # debug=True is useful for development (auto-reloads on code changes)
-    # host='0.0.0.0' makes the server accessible externally (use with caution)
-    print("Starting Flask server...")
-    print(f"Set GEMINI_API_KEY: { 'Yes' if app.config.get('GENAI_CLIENT') else 'No' }")
-    app.run(debug=True, host='127.0.0.1', port=5000) # Run locally on port 5000
